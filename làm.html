@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="vi" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiseFo - Học viện lọc và kiểm chứng thông tin</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6', // Teal main
+                            600: '#0d9488',
+                            900: '#0f4c4c',
+                        },
+                        accent: {
+                            main: '#F59E0B', // Amber
+                            hover: '#D97706',
+                        },
+                        surface: '#F8FAFC',
+                        dark: '#0F172A'
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
+                        'bounce-slow': 'bounce 3s infinite',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* CSS Cơ bản */
+        body { background-color: #F8FAFC; color: #334155; overflow-x: hidden; }
+        
+        /* Container cho biểu đồ Chart.js */
+        .chart-container { position: relative; width: 100%; max-width: 300px; margin: 0 auto; height: 250px; }
+        
+        /* Container nhúng Video thật */
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* Tỷ lệ 16:9 chuẩn */
+            height: 0;
+            overflow: hidden;
+            border-radius: 0.75rem;
+            background-color: #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .video-wrapper iframe, .video-wrapper img {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: none;
+            object-fit: cover;
+        }
+
+        /* Nút tương tác */
+        .interactive-btn {
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+        .interactive-btn:not(:disabled):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .interactive-btn.selected-correct { background-color: #DCFCE7; border-color: #10B981; color: #065F46; font-weight: 700; }
+        .interactive-btn.selected-wrong { background-color: #FEE2E2; border-color: #EF4444; color: #991B1B; font-weight: 700; }
+        .interactive-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+
+        /* Card Hover */
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+        .card-shadow:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            transform: translateY(-4px);
+        }
+
+        /* Certificate Styling */
+        .certificate-wrapper {
+            background: #ffffff;
+            border: 12px solid #0f766e;
+            padding: 2rem;
+            position: relative;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .certificate-wrapper::before {
+            content: ''; position: absolute; top: 4px; left: 4px; right: 4px; bottom: 4px;
+            border: 2px dashed #0f766e; pointer-events: none;
+        }
+
+        /* Custom Tooltip */
+        .has-tooltip { position: relative; cursor: help; border-bottom: 2px dotted #14b8a6; }
+        .tooltip-content {
+            visibility: hidden; opacity: 0;
+            background-color: #1E293B; color: #fff;
+            text-align: left; border-radius: 0.5rem; padding: 0.75rem;
+            position: absolute; z-index: 50; bottom: 125%; left: 50%;
+            transform: translateX(-50%); width: 250px; font-size: 0.875rem;
+            transition: opacity 0.3s; font-weight: normal; line-height: 1.4;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .tooltip-content::after {
+            content: ""; position: absolute; top: 100%; left: 50%;
+            margin-left: -5px; border-width: 5px; border-style: solid;
+            border-color: #1E293B transparent transparent transparent;
+        }
+        .has-tooltip:hover .tooltip-content { visibility: visible; opacity: 1; }
+        
+        /* Back to top button */
+        #btn-back-to-top { transition: opacity 0.3s, transform 0.3s; }
+        
+        /* Kính mờ (Glassmorphism) */
+        .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); }
+
+        /* Post Test animations */
+        .test-step { display: none; animation: fadeIn 0.5s ease-out forwards; }
+        .test-step.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Radio button style for quiz options */
+        .radio-circle {
+            width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e1;
+            display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;
+            flex-shrink: 0; transition: all 0.2s;
+        }
+        .interactive-btn.selected-correct .radio-circle { border-color: #10B981; background-color: #10B981; }
+        .interactive-btn.selected-wrong .radio-circle { border-color: #EF4444; background-color: #EF4444; }
+        .interactive-btn.selected-correct .radio-circle::after, .interactive-btn.selected-wrong .radio-circle::after {
+            content: ""; width: 8px; height: 8px; background: white; border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Navigation & Progress Bar -->
+    <nav class="fixed w-full z-50 bg-white/95 backdrop-blur border-b border-slate-200">
+        <div class="h-1 w-full bg-slate-100 absolute top-0 left-0">
+            <div class="h-1 bg-brand-500 w-0" id="scrollProgress"></div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex-shrink-0 flex items-center gap-3">
+                    <!-- Sửa link logo và thêm thuộc tính chống lỗi -->
+                    <img src="https://lh3.googleusercontent.com/d/1m70QytKZ_moX9-HZbAj0cTpOiMt4vH11" alt="WiseFo Logo" class="h-10 w-10 object-contain rounded-full shadow-sm border border-slate-100 bg-white p-0.5" onerror="this.onerror=null; this.src='image_38bbfa.png';">
+                    <span class="font-extrabold text-xl tracking-tight text-brand-900">WiseFo<span class="text-accent-main">.</span></span>
+                </div>
+                <div class="hidden lg:flex space-x-8 text-sm font-semibold text-slate-600 mt-1">
+                    <a href="#nhan-dien" class="hover:text-brand-600 transition">Nhận diện</a>
+                    <a href="#tam-ly" class="hover:text-brand-600 transition">Tâm lý học</a>
+                    <a href="#thuc-hanh-1" class="hover:text-brand-600 transition">Thực hành 1</a>
+                    <a href="#quy-trinh" class="hover:text-brand-600 transition">Quy trình và công cụ</a>
+                    <a href="#danh-gia" class="text-accent-main hover:text-accent-hover transition">Đánh giá</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Nút Float Back to Top -->
+    <button id="btn-back-to-top" onclick="window.scrollTo(0,0)" class="fixed bottom-6 right-6 w-12 h-12 bg-brand-600 text-white text-xl font-bold rounded-full shadow-lg hover:bg-brand-700 hover:shadow-xl opacity-0 translate-y-10 z-50">
+        ↑
+    </button>
+
+    <!-- Hero Section -->
+    <section class="pt-32 pb-24 px-6 bg-gradient-to-b from-brand-50 to-white text-slate-800 relative overflow-hidden">
+        <!-- Đồ họa trang trí nền -->
+        <div class="absolute top-10 left-10 w-72 h-72 bg-brand-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
+        <div class="absolute top-20 right-10 w-72 h-72 bg-accent-light rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob" style="animation-delay: 2s;"></div>
+
+        <div class="max-w-4xl mx-auto relative z-10 text-center animate-fade-in-up">
+            <span class="inline-block py-1 px-4 rounded-full bg-white border border-brand-200 text-brand-700 text-xs font-bold tracking-wider uppercase mb-6 shadow-sm">
+                Dự án môn học SSA101
+            </span>
+            <h1 class="text-4xl md:text-5xl lg:text-7xl font-black mb-6 leading-tight text-slate-900">
+                Lọc và kiểm chứng <br><span class="text-brand-600">thông tin thời đại số</span>
+            </h1>
+            
+            <p class="text-lg md:text-xl text-slate-600 mb-10 leading-relaxed max-w-2xl mx-auto font-medium">
+                Dựa trên giáo trình chuẩn <strong>MediaWise (Viện Poynter)</strong>. Khóa học này sẽ giúp bạn trang bị "lá chắn" tự vệ trước loại virus lan truyền nhanh gấp 6 lần sự thật.
+            </p>
+            
+            <a href="#tong-quan" class="inline-block bg-brand-600 hover:bg-brand-700 text-white font-bold py-4 px-10 rounded-full transition-all shadow-xl shadow-brand-500/30 text-lg hover:scale-105">
+                Bắt đầu khám phá 🚀
+            </a>
+        </div>
+    </section>
+
+    <!-- Phần Overview riêng biệt -->
+    <section id="tong-quan" class="pb-20 px-6 bg-white relative z-20 -mt-10">
+        <div class="max-w-6xl mx-auto grid lg:grid-cols-5 gap-8 items-stretch bg-white rounded-[2.5rem] card-shadow p-6 md:p-10 border border-slate-100">
+            
+            <!-- Cột trái: Thông tin & Mục tiêu khóa học -->
+            <div class="lg:col-span-3 flex flex-col justify-center">
+                <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-6">Tại sao bạn cần khóa học này?</h2>
+                
+                <div class="space-y-4 mb-6">
+                    <div class="flex items-start gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div class="text-3xl">⏱</div>
+                        <div>
+                            <h4 class="font-bold text-slate-800 text-lg mb-1">Thời lượng tối ưu</h4>
+                            <p class="text-sm text-slate-600">Bạn chỉ mất khoảng <strong>10 - 15 phút</strong> để hoàn thành toàn bộ nội dung và bài tập tương tác.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-4 p-5 bg-brand-50 rounded-2xl border border-brand-100">
+                        <div class="text-3xl">🎯</div>
+                        <div>
+                            <h4 class="font-bold text-brand-900 text-lg mb-1">Mục tiêu thực chiến</h4>
+                            <p class="text-sm text-brand-700">Làm chủ hoàn toàn <strong>quy trình 3 câu hỏi</strong> và <strong>bộ 4 công cụ</strong> chuẩn Stanford để nhận diện tin giả ngay lập tức.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Biểu đồ thực trạng -->
+            <div class="lg:col-span-2 bg-slate-900 p-8 rounded-3xl text-white relative overflow-hidden flex flex-col justify-center">
+                <div class="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEiIGZpbGw9Im5vbmUiPjxwYXRoIGQ9Ik0wIDBoNjB2NjBIMHoiLz48cGF0aCBkPSJNMCAzMGg2ME0zMCAwdjYwIi8+PC9nPjwvc3ZnPg==')]"></div>
+                <div class="relative z-10">
+                    <h3 class="text-center text-xl font-bold mb-2 text-white">Thực trạng (Việt Nam)</h3>
+                    <p class="text-center text-xs text-slate-400 mb-6 uppercase tracking-wider">Tỷ lệ người dùng tiếp xúc tin giả</p>
+                    <div class="chart-container">
+                        <canvas id="heroStatChart"></canvas>
+                    </div>
+                    <div class="mt-6 bg-white/10 backdrop-blur p-4 rounded-xl">
+                        <p class="text-sm text-center text-slate-200 leading-relaxed mb-3">
+                            Hơn 90% từng tiếp xúc tin giả. Hàng ngàn sinh viên đã sập bẫy lừa đảo hoặc bị dắt mũi bởi tin đồn.
+                        </p>
+                        <p class="text-[10px] text-center text-slate-400 italic border-t border-white/20 pt-2 leading-tight">
+                            * Nguồn: Khảo sát của Chương trình Nghiên cứu Internet và Xã hội (VPIS) và Báo cáo an toàn thông tin Việt Nam.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </section>
+
+    <!-- Phần 1: Nhận diện -->
+    <section id="nhan-dien" class="py-20 px-6 bg-surface border-t border-slate-100">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-brand-600 font-bold tracking-widest uppercase text-sm mb-2">Nội dung buổi 1</h2>
+                <h3 class="text-3xl md:text-4xl font-extrabold text-slate-800">Nhận diện "kẻ thù số"</h3>
+            </div>
+
+            <!-- Mis vs Dis -->
+            <div class="grid md:grid-cols-2 gap-8 mb-16">
+                <div class="bg-white p-8 rounded-2xl border-l-8 border-blue-400 card-shadow">
+                    <div class="text-4xl mb-4">🤷‍♂️</div>
+                    <h4 class="text-xl font-bold text-slate-800 mb-2">
+                        <span class="has-tooltip text-blue-700">Misinformation
+                            <span class="tooltip-content font-normal"><strong>Misinformation:</strong> Thông tin bị sai lệch, không chính xác do vô tình nhầm lẫn trong quá trình thu thập hoặc truyền đạt.</span>
+                        </span> (Tin sai lệch)
+                    </h4>
+                    <p class="text-slate-600">Đây là những thông tin không chính xác hoặc gây hiểu lầm, nhưng người chia sẻ <strong class="text-blue-600">không có ý định gây hại</strong>.</p>
+                </div>
+                <div class="bg-white p-8 rounded-2xl border-l-8 border-red-500 card-shadow">
+                    <div class="text-4xl mb-4">🦹‍♂️</div>
+                    <h4 class="text-xl font-bold text-slate-800 mb-2">
+                        <span class="has-tooltip text-red-600">Disinformation
+                            <span class="tooltip-content font-normal"><strong>Disinformation:</strong> Thông tin bịa đặt, thao túng một cách có hệ thống để phục vụ cho các mưu đồ xấu.</span>
+                        </span> (Tin xuyên tạc)
+                    </h4>
+                    <p class="text-slate-600">Mức độ nguy hiểm nhất. Là những thông tin sai lệch được tạo ra và chia sẻ một cách <strong class="text-red-600">cố ý</strong>.</p>
+                </div>
+            </div>
+
+            <!-- Hình ảnh minh họa -->
+            <div class="max-w-3xl mx-auto mb-20 card-shadow rounded-xl overflow-hidden bg-white p-2 border border-slate-200">
+                <div class="video-wrapper rounded-lg">
+                    <img src="https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=800&q=80" alt="News and Fake News">
+                </div>
+                <p class="text-center mt-3 mb-2 text-sm text-slate-500 font-medium">Hình ảnh: Thông tin tràn lan trên các phương tiện truyền thông</p>
+            </div>
+
+            <!-- 5 Types Grid -->
+            <h3 class="text-2xl font-bold text-center text-slate-800 mb-8">5 vỏ bọc phổ biến của tin giả</h3>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+                <div class="bg-white p-6 rounded-2xl card-shadow">
+                    <span class="inline-block bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded mb-3">Loại 1</span>
+                    <h4 class="font-bold text-lg mb-2 text-brand-900">Nội dung giả mạo</h4>
+                    <p class="text-sm text-slate-600 mb-4 h-16">Hoàn toàn sai sự thật, được dàn dựng bằng công nghệ (VD: Deepfake ông Kim Jong-Un).</p>
+                    <div class="video-wrapper">
+                        <iframe src="https://drive.google.com/file/d/1GMdht_YppOFItz1z0AUxsbXfi0orF8Es/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl card-shadow">
+                    <span class="inline-block bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded mb-3">Loại 2</span>
+                    <h4 class="font-bold text-lg mb-2 text-brand-900">Nội dung thao túng</h4>
+                    <p class="text-sm text-slate-600 mb-4 h-16">Ảnh hoặc video thật nhưng bị chỉnh sửa làm thay đổi ý nghĩa gốc để định hướng dư luận.</p>
+                    <div class="video-wrapper">
+                        <iframe src="https://drive.google.com/file/d/1XmbrgDSPWWWnntsfh7nCv9e6l4sgCnCW/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl card-shadow">
+                    <span class="inline-block bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded mb-3">Loại 3</span>
+                    <h4 class="font-bold text-lg mb-2 text-brand-900">Ngoài ngữ cảnh</h4>
+                    <p class="text-sm text-slate-600 mb-4 h-16">Sử dụng ảnh thật nhưng gán sai sự thật về thời gian, địa điểm, hoặc sự kiện.</p>
+                    <div class="video-wrapper">
+                        <iframe src="https://drive.google.com/file/d/1DTsEFSJKKBaudqimAIo1DJXoayZXKfB_/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl card-shadow lg:col-span-1 md:col-span-2">
+                    <span class="inline-block bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded mb-3">Loại 4</span>
+                    <h4 class="font-bold text-lg mb-2 text-brand-900">Tài khoản mạo danh</h4>
+                    <p class="text-sm text-slate-600 mb-4 lg:h-auto">Sử dụng tên, logo của tổ chức hoặc người uy tín để tạo ấn tượng sai lệch.</p>
+                    <div class="video-wrapper">
+                        <iframe src="https://drive.google.com/file/d/1VJVR2RNDaTDgO37XO-9O08i4jZrlj2av/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl card-shadow lg:col-span-2 md:col-span-2">
+                    <span class="inline-block bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded mb-3">Loại 5</span>
+                    <h4 class="font-bold text-lg mb-2 text-brand-900">Châm biếm / trào phúng</h4>
+                    <div class="grid lg:grid-cols-2 gap-4">
+                        <p class="text-sm text-slate-600">Nội dung mang tính hài hước, mỉa mai. Ban đầu chỉ để đùa vui nhưng dễ bị nhầm là thật nếu lướt nhanh.</p>
+                        <div class="video-wrapper">
+                            <iframe src="https://drive.google.com/file/d/1ycoEMdOerJ4JfL9MNPxaFtxRchakdalU/preview" allow="autoplay" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần 2: Tâm lý học -->
+    <section id="tam-ly" class="py-20 px-6 bg-slate-900 text-white relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-32 bg-brand-900 rounded-full mix-blend-screen filter blur-[100px] opacity-50"></div>
+        <div class="max-w-6xl mx-auto relative z-10">
+            <div class="text-center mb-16">
+                <h3 class="text-3xl md:text-4xl font-extrabold mb-4">Tại sao chúng ta vẫn "sập bẫy"?</h3>
+                <p class="text-slate-300">Câu trả lời nằm ở "điểm mù" tâm lý của con người.</p>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-12 items-center mb-16">
+                <div class="space-y-6">
+                    <div class="bg-white/5 p-6 rounded-xl border border-white/10">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="text-2xl">🧠</span>
+                            <h5 class="font-bold text-accent-main">Thành kiến xác nhận (Confirmation bias)</h5>
+                        </div>
+                        <p class="text-sm text-slate-300 leading-relaxed">Chúng ta có xu hướng chỉ tin vào những thông tin phù hợp với niềm tin đã có sẵn. (Ví dụ: Bạn ghét ai, bạn sẽ dễ tin tin xấu về người đó).</p>
+                    </div>
+                    <div class="bg-white/5 p-6 rounded-xl border border-white/10">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="text-2xl">🔁</span>
+                            <h5 class="font-bold text-accent-main">Sự lặp lại (The illusory truth effect)</h5>
+                        </div>
+                        <p class="text-sm text-slate-300 leading-relaxed">Khi một thông tin sai lệch được lặp đi lặp lại nhiều lần trên bảng tin, não bộ có xu hướng tự động chấp nhận nó là đúng do cảm giác quen thuộc.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xl font-bold mb-6 text-center border-b border-slate-700 pb-2">Bí quyết nhận diện "tin tốt"</h4>
+                    <div class="video-wrapper border border-white/20 mb-6 shadow-2xl">
+                        <iframe src="https://drive.google.com/file/d/13sJtXwqRIezvxiIzPztFfSjxM_zAt3xW/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div class="bg-green-700/80 p-3 rounded-lg border border-green-500/50">
+                            <span class="text-xl block mb-1">📰</span>
+                            <strong>Bản tin (News)</strong><br><span class="opacity-80 mt-1 block">Sự thật khách quan.</span>
+                        </div>
+                        <div class="bg-blue-700/80 p-3 rounded-lg border border-blue-500/50">
+                            <span class="text-xl block mb-1">✍️</span>
+                            <strong>Bình luận (Opinion)</strong><br><span class="opacity-80 mt-1 block">Quan điểm cá nhân.</span>
+                        </div>
+                        <div class="bg-purple-700/80 p-3 rounded-lg border border-purple-500/50">
+                            <span class="text-xl block mb-1">✅</span>
+                            <strong>Kiểm chứng</strong><br><span class="opacity-80 mt-1 block">Xác minh tin đồn.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần 3: Trò chơi 1 (Minigame) -->
+    <section id="thuc-hanh-1" class="py-20 px-6 bg-white">
+        <div class="max-w-5xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-brand-600 font-bold tracking-widest uppercase text-sm mb-2">Thực hành 1</h2>
+                <h3 class="text-3xl md:text-4xl font-extrabold text-slate-800 mb-4">Quyết định SHARE hay CHECK?</h3>
+                <p class="text-slate-600 max-w-2xl mx-auto">
+                    Hãy xem xét các tình huống sau, dùng trực giác để quyết định bấm <strong class="text-green-600">🚀 SHARE</strong> (chia sẻ) hay <strong class="text-accent-main">🔍 CHECK</strong> (kiểm tra lại)!
+                </p>
+            </div>
+
+            <!-- Quiz Container -->
+            <div id="mg1-container" class="bg-surface p-6 md:p-8 rounded-3xl border border-slate-200 card-shadow relative max-w-2xl mx-auto">
+                <!-- JS will inject content here -->
+            </div>
+            
+            <div class="mt-16 bg-gradient-to-r from-brand-600 to-blue-800 text-white p-8 rounded-2xl text-center shadow-lg max-w-3xl mx-auto">
+                <p class="text-sm uppercase tracking-widest opacity-80 font-bold mb-2">Thông điệp chốt buổi 1</p>
+                <p class="text-2xl md:text-3xl font-black italic">"Đừng chia sẻ ngay lập tức.<br>Hãy dừng lại và kiểm tra!"</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần 4: Quy trình & Công cụ -->
+    <section id="quy-trinh" class="py-20 px-6 bg-slate-50 border-t border-slate-200">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-brand-600 font-bold tracking-widest uppercase text-sm mb-2">Nội dung buổi 2</h2>
+                <h3 class="text-3xl md:text-4xl font-extrabold text-slate-800 mb-4">Quy trình 3 câu hỏi vàng</h3>
+                <p class="text-slate-600 max-w-2xl mx-auto">
+                    Nếu thấy nội dung tạo cảm xúc mãnh liệt hoặc "quá tốt để có thể là thật", đó là <strong class="text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100">cờ đỏ (Red flag)</strong>. Dừng lại một nhịp và dùng 3 câu hỏi:
+                </p>
+            </div>
+
+            <div class="max-w-3xl mx-auto mb-16">
+                <div class="video-wrapper card-shadow rounded-2xl border-4 border-white">
+                    <iframe src="https://drive.google.com/file/d/1s89pMfp1YEcPTjF-m3gVWHfJ1msd50RS/preview" allow="autoplay" allowfullscreen></iframe>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6 relative mb-24">
+                <div class="hidden md:block absolute top-[40px] left-[15%] right-[15%] h-1 bg-brand-200 -z-10"></div>
+                
+                <div class="bg-white p-8 rounded-2xl card-shadow text-center relative">
+                    <div class="w-16 h-16 mx-auto bg-brand-500 text-white rounded-full flex items-center justify-center text-2xl font-black mb-6 shadow-lg border-4 border-white">1</div>
+                    <h4 class="font-bold text-lg mb-3 text-slate-800">Ai đứng sau thông tin này?</h4>
+                    <p class="text-sm text-slate-500">Kiểm tra tác giả, uy tín trang web, xem họ có chuyên môn hay không.</p>
+                </div>
+                <div class="bg-white p-8 rounded-2xl card-shadow text-center relative">
+                    <div class="w-16 h-16 mx-auto bg-brand-500 text-white rounded-full flex items-center justify-center text-2xl font-black mb-6 shadow-lg border-4 border-white">2</div>
+                    <h4 class="font-bold text-lg mb-3 text-slate-800">Bằng chứng là gì?</h4>
+                    <p class="text-sm text-slate-500">Dữ liệu cụ thể, hình ảnh gốc, hoặc trích dẫn từ chuyên gia/báo cáo.</p>
+                </div>
+                <div class="bg-white p-8 rounded-2xl card-shadow text-center relative">
+                    <div class="w-16 h-16 mx-auto bg-brand-500 text-white rounded-full flex items-center justify-center text-2xl font-black mb-6 shadow-lg border-4 border-white">3</div>
+                    <h4 class="font-bold text-lg mb-3 text-slate-800">Các nguồn khác nói gì?</h4>
+                    <p class="text-sm text-slate-500">Mở tab mới kiểm tra xem các báo chính thống khác có đăng tin tương tự không.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần 5: Công cụ -->
+    <section id="cong-cu" class="py-20 px-6 bg-brand-900 text-white">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-center mb-16">
+                <h3 class="text-3xl md:text-4xl font-extrabold text-white mb-4">Bộ 4 công cụ thực chiến</h3>
+                <p class="text-slate-300">Hãy làm chủ các kỹ năng mà nhà báo chuyên nghiệp thường xuyên sử dụng.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 mb-16">
+                <!-- Công cụ 1 -->
+                <div class="bg-white/5 p-6 rounded-2xl border border-white/10 hover:border-brand-400 transition">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">↔️</span>
+                        <h4 class="text-xl font-bold text-accent-main">Đọc ngang (Lateral reading)</h4>
+                    </div>
+                    <div class="video-wrapper border border-white/20 mb-4">
+                        <iframe src="https://drive.google.com/file/d/1k8Lq02g0e61YY-hSAxh4gXrulviLt8vq/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                    <p class="text-sm text-slate-300">Mở nhiều tab mới, tìm kiếm thông tin về nguồn tin đó và so sánh các góc nhìn.</p>
+                </div>
+                
+                <!-- Công cụ 2 -->
+                <div class="bg-white/5 p-6 rounded-2xl border border-white/10 hover:border-brand-400 transition">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">🖱️</span>
+                        <h4 class="text-xl font-bold text-accent-main">Hạn chế nhấp chuột</h4>
+                    </div>
+                    <div class="video-wrapper border border-white/20 mb-4">
+                        <iframe src="https://drive.google.com/file/d/1ml3K18Y-PIWX0AJOuUU88kLL_C98fxWI/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                    <p class="text-sm text-slate-300">Lướt qua cả trang để chọn kết quả tìm kiếm uy tín nhất thay vì bấm ngay link đầu tiên.</p>
+                </div>
+
+                <!-- Công cụ 3 -->
+                <div class="bg-white/5 p-6 rounded-2xl border border-white/10 hover:border-brand-400 transition">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">🔍</span>
+                        <h4 class="text-xl font-bold text-accent-main">Tìm kiếm ảnh ngược</h4>
+                    </div>
+                    <div class="video-wrapper border border-white/20 mb-4">
+                        <iframe src="https://drive.google.com/file/d/1t2-GVA1tu0uj2FzntGDCk42FFIilydso/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                    <p class="text-sm text-slate-300">Sử dụng Google Images hoặc TinEye tìm bối cảnh thực sự và thời gian xuất hiện đầu tiên của bức ảnh.</p>
+                </div>
+
+                <!-- Công cụ 4 -->
+                <div class="bg-white/5 p-6 rounded-2xl border border-white/10 hover:border-brand-400 transition">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">📚</span>
+                        <h4 class="text-xl font-bold text-accent-main">Sử dụng Wikipedia đúng cách</h4>
+                    </div>
+                    <div class="video-wrapper border border-white/20 mb-4">
+                        <iframe src="https://drive.google.com/file/d/1B4wnQe4A7vM3KMEwRDM8oBeGzar7lrSv/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                    <p class="text-sm text-slate-300">Kéo xuống phần "Tài liệu tham khảo" để đối chiếu link gốc của các sự kiện hoặc tổ chức.</p>
+                </div>
+            </div>
+            
+            <!-- Nguồn uy tín -->
+            <div class="mt-16 bg-brand-800 p-8 rounded-[2rem] border border-brand-700 shadow-lg">
+                <h4 class="text-center font-bold text-xl text-brand-200 mb-8">💡 Góc gợi ý: Top nguồn tin uy tín để đối chiếu</h4>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
+                    <div class="bg-black/20 p-6 rounded-xl text-center hover:bg-black/30 transition">
+                        <strong class="text-white block mb-2 text-lg">VietnamPlus</strong>
+                        <span class="text-slate-300 text-xs">Cơ quan thông tấn quốc gia (TTXVN).</span>
+                    </div>
+                    <div class="bg-black/20 p-6 rounded-xl text-center hover:bg-black/30 transition">
+                        <strong class="text-white block mb-2 text-lg">VnExpress / Tuổi Trẻ</strong>
+                        <span class="text-slate-300 text-xs">Báo điện tử chính thống, kiểm duyệt kỹ.</span>
+                    </div>
+                    <div class="bg-black/20 p-6 rounded-xl text-center hover:bg-black/30 transition">
+                        <strong class="text-white block mb-2 text-lg">Reuters / AP</strong>
+                        <span class="text-slate-300 text-xs">Tiêu chuẩn vàng báo chí quốc tế.</span>
+                    </div>
+                    <div class="bg-black/20 p-6 rounded-xl text-center hover:bg-black/30 transition">
+                        <strong class="text-white block mb-2 text-lg">Snopes / Fact Check</strong>
+                        <span class="text-slate-300 text-xs">Chuyên trang quốc tế vạch trần tin giả.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần 6: Thực hành 2 (Trò chơi Bạn cảm thấy thông tin này ntn) -->
+    <section class="py-20 px-6 bg-white">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-brand-600 font-bold tracking-widest uppercase text-sm mb-2">Thực hành 2</h2>
+                <h3 class="text-3xl font-extrabold text-slate-800 mb-4">Trò chơi 2: Bạn cảm thấy thông tin này như thế nào?</h3>
+                <p class="text-slate-600">Vận dụng các công cụ đã học để quyết định cách kiểm chứng các thông tin sau.</p>
+            </div>
+
+            <div id="quiz2-container" class="bg-surface p-6 md:p-8 rounded-3xl border border-slate-200 card-shadow relative max-w-2xl mx-auto">
+                <!-- JS will inject content here -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần 7: Đánh giá (Post-Test & Chứng nhận) -->
+    <section id="danh-gia" class="py-20 px-6 bg-surface border-t border-slate-200 min-h-screen flex flex-col justify-center">
+        <div class="max-w-3xl mx-auto w-full">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-800 mb-2 uppercase tracking-wide">Bài kiểm tra cuối khóa</h2>
+                <p class="text-slate-600">Vượt qua bài kiểm tra tự luận này để nhận giấy chứng nhận hoàn thành.</p>
+            </div>
+
+            <div class="bg-white rounded-[2rem] card-shadow p-6 md:p-10 relative overflow-hidden min-h-[450px] flex flex-col justify-center">
+                <!-- Final Quiz Area -->
+                <div id="final-test-container">
+                    <!-- JS Injected -->
+                </div>
+
+                <!-- Certificate Area -->
+                <div id="certificate-area" class="hidden text-center">
+                    <div class="certificate-wrapper text-slate-800 rounded-xl mb-8">
+                        <div class="text-6xl mb-4 text-accent-main">🏆</div>
+                        <h2 class="text-3xl md:text-4xl font-bold mb-2 uppercase tracking-wide text-brand-900" style="font-family: serif;">Giấy chứng nhận</h2>
+                        <p class="text-[10px] font-bold tracking-[0.2em] text-slate-500 mb-4 uppercase">WiseFo Project - SSA101</p>
+                        
+                        <p class="text-lg italic mb-2 text-slate-600">Chúc mừng bạn đã hoàn thành xuất sắc</p>
+                        <h3 class="text-2xl md:text-3xl font-black text-accent-main mb-4">Khóa học Lọc và kiểm chứng thông tin</h3>
+                        
+                        <!-- Hiển thị điểm số -->
+                        <div id="final-score-display" class="text-xl font-bold text-brand-600 mb-6 bg-brand-50 inline-block px-4 py-2 rounded-lg border border-brand-200"></div>
+
+                        <div class="bg-brand-50 p-4 rounded-lg border-l-4 border-brand-500 text-sm text-left text-brand-900 italic mb-8 font-medium">
+                            Tuyên ngôn: "Tôi cam kết sẽ áp dụng quy trình 3 câu hỏi trước khi chia sẻ bất kỳ thông tin nào lên mạng xã hội."
+                        </div>
+                        
+                        <div class="flex justify-between items-end border-t-2 border-slate-100 pt-6">
+                            <div class="text-left">
+                                <span class="font-serif text-xl italic text-slate-400 block">MediaWise</span>
+                                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Giáo trình chuẩn</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="font-serif text-xl font-bold text-brand-800 block">WiseFo Team</span>
+                                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Đơn vị tổ chức</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Nút chia sẻ -->
+                    <button class="bg-blue-600 text-white px-8 py-4 rounded-full font-bold shadow-lg hover:bg-blue-700 transition w-full md:w-auto flex items-center justify-center gap-2 mx-auto" onclick="alert('Đã tạo link chia sẻ! Bạn có thể dán lên Facebook.')">
+                        🔗 Chia sẻ thành tích này lên Facebook
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer & Đánh giá -->
+    <footer id="about" class="bg-dark text-slate-400 pt-16 pb-8 px-6 border-t border-slate-800">
+        <div class="max-w-6xl mx-auto">
+            <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-2xl border border-slate-700 mb-16 text-center">
+                <h4 class="text-white font-bold text-2xl mb-2">⭐ Góc phản hồi (Feedback)</h4>
+                <p class="text-sm text-slate-300 mb-6 max-w-xl mx-auto">Ý kiến của bạn là động lực rất lớn giúp nhóm WiseFo hoàn thiện dự án.</p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSdnudwPPbxlUf6_LuAk7wZedUopepcGuVdulp64eSNk1we3CQ/viewform" target="_blank" class="inline-block bg-white text-slate-900 px-6 py-3 rounded-lg font-bold hover:bg-slate-200 transition shadow-lg">
+                    Đánh giá khóa học ngay
+                </a>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-12 mb-12 border-b border-slate-800 pb-12">
+                <div>
+                    <h4 class="text-white font-bold text-xl mb-4 uppercase tracking-wider flex items-center gap-2">
+                        <!-- Sửa link logo dưới footer và thêm thuộc tính chống lỗi -->
+                        <img src="https://lh3.googleusercontent.com/d/1m70QytKZ_moX9-HZbAj0cTpOiMt4vH11" alt="WiseFo Logo" class="h-8 w-8 rounded-full bg-white p-0.5 object-contain" onerror="this.onerror=null; this.src='image_38bbfa.png';"> 
+                        Về dự án WiseFo
+                    </h4>
+                    <p class="text-sm leading-relaxed mb-6 text-slate-300">
+                        Dự án môn học SSA101 – Learning Skills in Real Life. Mục đích trang bị kỹ năng lọc tin phi lợi nhuận.
+                    </p>
+                    <div class="space-y-2 text-sm text-slate-400">
+                        <p><strong>Nội dung:</strong> Trần Chí Kiên | Nguyễn Trần Xuân Bắc</p>
+                        <p><strong>Thiết kế slide:</strong> Hà Ngọc Quỳnh Anh | Phạm Quốc Đạt</p>
+                        <p><strong>Thiết kế bìa:</strong> Nguyễn Quốc Hiếu</p>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-white font-bold text-xl mb-4 uppercase tracking-wider">Tài liệu tham khảo</h4>
+                    <ul class="text-sm space-y-3 text-slate-400 list-disc list-inside">
+                        <li>Poynter Institute. (2020). <em>MediaWise fact-checking course</em>.</li>
+                        <li>Stanford History Education Group (SHEG). <em>Civic online reasoning</em>.</li>
+                        <li>Vosoughi, S., Roy, D., & Aral, S. (2018). <em>The spread of true and false news online</em>. Science.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="text-xs text-slate-500 text-center max-w-4xl mx-auto leading-relaxed">
+                <p>&copy; 2026 WiseFo Project. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // --- Logic Thanh Tiến Độ & Back to Top ---
+        window.onscroll = function() {
+            var winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+            var height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+            var scrolled = (winScroll / height) * 100;
+            document.getElementById("scrollProgress").style.width = scrolled + "%";
+
+            var btnTop = document.getElementById("btn-back-to-top");
+            if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {
+                btnTop.classList.remove("opacity-0", "translate-y-10", "invisible");
+                btnTop.classList.add("opacity-100", "translate-y-0", "visible");
+            } else {
+                btnTop.classList.add("opacity-0", "translate-y-10", "invisible");
+                btnTop.classList.remove("opacity-100", "translate-y-0", "visible");
+            }
+        };
+
+        // --- 1. Chart.js Logic (Hero Section) ---
+        const ctx = document.getElementById('heroStatChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Từng tiếp xúc tin giả', 'Chưa từng/Không rõ'],
+                datasets: [{
+                    data: [90, 10],
+                    backgroundColor: ['#EF4444', 'rgba(255, 255, 255, 0.2)'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '75%',
+                plugins: { legend: { display: false } }
+            },
+            plugins: [{
+                id: 'centerText',
+                beforeDraw: function(chart) {
+                    var width = chart.width, height = chart.height, ctx = chart.ctx;
+                    ctx.restore();
+                    var fontSize = (height / 100).toFixed(2);
+                    ctx.font = "bold " + fontSize + "em sans-serif";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#fff";
+                    var text = "90%", textX = Math.round((width - ctx.measureText(text).width) / 2), textY = height / 2;
+                    ctx.fillText(text, textX, textY);
+                    ctx.save();
+                }
+            }]
+        });
+
+        // --- 2. Data Arrays ---
+        
+        // Minigame 1 gồm 6 câu
+        const mg1Data = [
+            {
+                title: "Tình huống 1: Video Will Smith đánh golf",
+                vid: "1W30MhbsiI1BxC3pY_My8YrXdqvLJVzdB",
+                hint: "Nhìn kỹ góc máy quay và cú vung gậy.",
+                ans: "check", msg: "Đây là video cắt ghép hoặc thao túng để câu view."
+            },
+            {
+                title: "Tình huống 2: Dòng Tweet của Donald Trump",
+                vid: "1PozYzQsNzwmOIA58nRntCoo1bQq_dxWT",
+                hint: "Nhìn kỹ font chữ và độ mờ của ảnh.",
+                ans: "check", msg: "Đây là ảnh chụp màn hình làm giả bằng phần mềm."
+            },
+            {
+                title: "Tình huống 3: Biểu đồ số liệu Covid-19",
+                vid: "1kGwFxjnMOyI780MFxS0qf4xRowoGZNdV",
+                hint: "Độ cao của 2 cột không tương xứng.",
+                ans: "check", msg: "Đây là infographic lừa đảo cố tình vẽ sai tỷ lệ đồ thị."
+            },
+            {
+                title: "Tình huống 4: Báo điện tử Decatur Times",
+                vid: "16B2kX_hvwq3cO4-ZPSBz6_q9U63tVL3q",
+                hint: "Không có tên phóng viên, địa chỉ tòa soạn chịu trách nhiệm.",
+                ans: "check", msg: "Đây là trang web giả danh báo địa phương (Pink Slime)."
+            },
+            {
+                title: "Tình huống 5: Bác Hồ đọc Tuyên ngôn Độc lập",
+                vid: "184B-FCbzRmqc9kg-Ng0dpHpdhTcCg3nl",
+                hint: "Bức ảnh tư liệu lịch sử quen thuộc.",
+                ans: "share", msg: "Đây là tư liệu lịch sử chính thống, không có dấu hiệu bị thao túng."
+            },
+            {
+                title: "Tình huống 6: Tin thể thao Fox News - Tampa Bay vô địch",
+                vid: "1YBXD0y9hnOAMmgdTKg4rbmvKxbftGUbH",
+                hint: "Tích xanh đầy đủ, thông tin trận đấu rõ ràng.",
+                ans: "share", msg: "Đây là nguồn tin uy tín, tin thể thao vô hại. Đầy đủ thông tin để dễ dàng tra cứu."
+            }
+        ];
+
+        // Đánh giá Trò chơi 2
+        const quiz2Data = [
+            {
+                q: "Bạn cảm thấy thông tin này như thế nào? Công cụ TỐT NHẤT để kiểm tra xem thông tin này có phải là thật hay không là...",
+                mockup: `<div class="video-wrapper mb-4 border border-slate-200 rounded-xl"><iframe src="https://drive.google.com/file/d/1kAGfdPIN7Rm7ZkX43Nn21jUZJzgEH-NJ/preview" allow="autoplay" allowfullscreen></iframe></div>`,
+                options: ["Đọc ngang (Lateral reading)", "Tìm kiếm ảnh ngược", "Sử dụng Wikipedia"],
+                correct: 1,
+                expl: "Chính xác! Tìm kiếm ảnh ngược sẽ tiết lộ nguồn gốc thực sự và bối cảnh nguyên thủy của hình ảnh hoặc biểu đồ này."
+            },
+            {
+                q: "Bạn cảm thấy thông tin này như thế nào? Công cụ TỐT NHẤT để tìm hiểu xem thông tin này có chính xác hay không là...",
+                mockup: `<div class="video-wrapper mb-4 border border-slate-200 rounded-xl"><iframe src="https://drive.google.com/file/d/1HiHOzDeSOOF7ji_TO2oSHtEIWHP4R9KQ/preview" allow="autoplay" allowfullscreen></iframe></div>`,
+                options: ["Đọc ngang (Lateral reading)", "Tìm kiếm ảnh ngược", "Sử dụng Wikipedia"],
+                correct: 0,
+                expl: "Chính xác! Bạn cần đọc ngang (mở tab mới tìm kiếm) để xem các trang báo chính thống phân tích như thế nào về sự kiện này thay vì tin ngay."
+            },
+            {
+                q: "Bạn cảm thấy thông tin này như thế nào? Lựa chọn nào là cách NHANH NHẤT để kiểm tra thông tin sự kiện này?",
+                mockup: `<div class="video-wrapper mb-4 border border-slate-200 rounded-xl"><iframe src="https://drive.google.com/file/d/105vZOQ3BI7DDi4xluHMMQi_tYEi2yqys/preview" allow="autoplay" allowfullscreen></iframe></div>`,
+                options: ["Tìm kiếm ảnh ngược", "Sử dụng Wikipedia"],
+                correct: 1,
+                expl: "Chính xác! Trang Wikipedia của các tổ chức hoặc sự kiện lớn được cộng đồng giám sát nghiêm ngặt và cập nhật cực nhanh. Xem phần 'Tài liệu tham khảo' để có link gốc."
+            }
+        ];
+
+        // Bài kiểm tra cuối khóa (Tự luận)
+        const finalTestData = [
+            {
+                q: "Theo chuẩn của Đại học Stanford, bạn BẮT BUỘC phải trả lời 3 câu hỏi cốt lõi nào khi kiểm chứng một thông tin?",
+                options: ["Ai đăng bài? Có nhiều lượt thích không? Bao giờ đăng?", "Ai đứng sau thông tin? Bằng chứng là gì? Các nguồn khác nói gì?", "Bài này của báo nào? Tác giả là ai? Có hình ảnh không?"],
+                correct: 1,
+                expl: "Đây là 3 câu hỏi nền tảng giúp bạn xác định tính hợp lệ của bất kỳ nguồn tin nào."
+            },
+            {
+                q: "Khi điều tra một thông tin lan truyền, bạn nên kết hợp sử dụng bộ công cụ nào sau đây?",
+                options: ["Chỉ cần tìm kiếm Google và đọc Wikipedia.", "Đọc ngang (Lateral reading), Tìm ảnh ngược, Hạn chế nhấp chuột và Wikipedia.", "Hỏi ý kiến bạn bè trên mạng xã hội."],
+                correct: 1,
+                expl: "Việc kết hợp các công cụ này sẽ giúp bạn có cái nhìn toàn diện và chính xác nhất về nguồn gốc thông tin."
+            },
+            {
+                q: "Sau quá trình kiểm chứng, kết luận của bạn về một thông tin có thể phân loại vào các nhóm nào?",
+                options: ["Chỉ có thật (True) hoặc giả (False).", "Hợp pháp/đáng tin (Legit), bị chỉnh sửa (Not legit), hoặc cần thêm bối cảnh (Needs context).", "Tin tức tốt hoặc tin tức xấu."],
+                correct: 1,
+                expl: "Thông tin trên mạng rất phức tạp, đôi khi một bức ảnh là thật nhưng lại bị đặt sai ngữ cảnh, do đó 'Cần thêm bối cảnh' là một kết luận rất quan trọng."
+            },
+            {
+                q: "Tiêu chí để một dự án kiểm chứng đạt mức độ 'Xuất sắc' (Excellent) là gì?",
+                options: ["Video dài trên 10 phút, có nhiều hiệu ứng chuyển cảnh bắt mắt.", "Chỉ cần đưa ra kết luận đúng là đủ.", "Sử dụng chính xác thuật ngữ chuyên môn (đọc ngang, tìm ảnh ngược...), nguồn uy tín và trả lời rõ ràng 3 câu hỏi vàng."],
+                correct: 2,
+                expl: "Sử dụng đúng thuật ngữ và nguồn tài liệu uy tín là minh chứng rõ ràng nhất cho kỹ năng tư duy phản biện của bạn."
+            }
+        ];
+
+        // Biến lưu điểm số bài cuối khóa
+        let finalScore = 0;
+
+        // --- 4. Render Logic ---
+        
+        // Minigame 1: SHARE hay CHECK
+        let mg1Idx = 0;
+        function renderMg1() {
+            const container = document.getElementById('mg1-container');
+            const item = mg1Data[mg1Idx];
+            container.innerHTML = `
+                <div class="test-step active">
+                    <div class="flex justify-between items-center mb-4 border-b border-slate-200 pb-3">
+                        <h4 class="font-bold text-lg text-slate-800">${item.title}</h4>
+                        <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">${mg1Idx + 1}/${mg1Data.length}</span>
+                    </div>
+                    <div class="video-wrapper mb-4">
+                        <iframe src="https://drive.google.com/file/d/${item.vid}/preview" allow="autoplay" allowfullscreen></iframe>
+                    </div>
+                    <p class="text-sm bg-slate-100 p-3 rounded-lg text-slate-700 mb-6">💡 <strong>Gợi ý:</strong> ${item.hint}</p>
+                    <div class="grid grid-cols-2 gap-4" id="mg1-btns">
+                        <button class="interactive-btn bg-white border-slate-200 py-3 rounded-xl font-bold shadow-sm text-green-700" onclick="handleMg1('share')">🚀 SHARE</button>
+                        <button class="interactive-btn bg-white border-slate-200 py-3 rounded-xl font-bold shadow-sm text-accent-main" onclick="handleMg1('check')">🔍 CHECK</button>
+                    </div>
+                    <div id="mg1-fb" class="hidden mt-4 p-4 rounded-xl text-sm font-medium"></div>
+                    <button id="mg1-nxt" class="hidden mt-4 w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl transition" onclick="nextMg1()">Tình huống tiếp theo ➡️</button>
+                </div>
+            `;
+        }
+        
+        function handleMg1(choice) {
+            const item = mg1Data[mg1Idx];
+            const btns = document.getElementById('mg1-btns').querySelectorAll('button');
+            btns.forEach(b => b.disabled = true);
+            const fb = document.getElementById('mg1-fb');
+            fb.style.display = 'block';
+            
+            const isCorrect = (choice === item.ans);
+
+            if(isCorrect) {
+                fb.className = "mt-4 p-3 rounded-xl text-sm font-medium bg-green-50 text-green-800 border border-green-200 block";
+                fb.innerHTML = "✅ <strong>Đúng quyết định! Đáp án là " + item.ans.toUpperCase() + ".</strong><br>" + item.msg;
+                if(choice === 'share') btns[0].classList.add('selected-correct');
+                else btns[1].classList.add('selected-correct');
+            } else {
+                fb.className = "mt-4 p-3 rounded-xl text-sm font-medium bg-red-50 text-red-800 border border-red-200 block";
+                fb.innerHTML = "❌ <strong>Nguy hiểm! Đáp án phải là " + item.ans.toUpperCase() + ".</strong><br>" + item.msg;
+                if(choice === 'share') btns[0].classList.add('selected-wrong');
+                else btns[1].classList.add('selected-wrong');
+            }
+            document.getElementById('mg1-nxt').classList.remove('hidden');
+        }
+        
+        function nextMg1() {
+            mg1Idx++;
+            if(mg1Idx < mg1Data.length) renderMg1();
+            else document.getElementById('mg1-container').innerHTML = `<div class="text-center py-6"><div class="text-5xl mb-3">🎉</div><h4 class="font-bold text-xl text-brand-700">Hoàn thành Thực hành 1!</h4><p class="text-sm text-slate-500 mt-2">Trực giác của bạn đã nhạy bén hơn rất nhiều.</p></div>`;
+        }
+
+        // Quiz 2
+        let q2Idx = 0;
+        function renderQuiz2() {
+            const container = document.getElementById('quiz2-container');
+            const item = quiz2Data[q2Idx];
+            
+            let html = `
+                <div class="test-step active">
+                    <div class="mb-6 flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Câu hỏi ${q2Idx + 1} / ${quiz2Data.length}</span>
+                        <div class="flex gap-1">
+                            ${quiz2Data.map((_, i) => `<div class="w-2 h-2 rounded-full ${i === q2Idx ? 'bg-brand-500' : (i < q2Idx ? 'bg-brand-200' : 'bg-slate-200')}"></div>`).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        ${item.mockup}
+                    </div>
+
+                    <h3 class="text-base md:text-lg font-bold text-slate-800 mb-6 leading-snug">${item.q}</h3>
+                    <div class="space-y-3" id="q2-opts">
+            `;
+            item.options.forEach((opt, i) => {
+                html += `
+                    <button class="interactive-btn w-full text-left p-4 rounded-xl bg-surface border-slate-200 text-slate-700 font-medium flex items-center" onclick="handleQuiz2(${i})">
+                        <div class="radio-circle"></div> ${opt}
+                    </button>
+                `;
+            });
+            html += `
+                    </div>
+                    <div id="q2-fb" class="hidden mt-6 p-4 rounded-xl text-sm border"></div>
+                    <button id="q2-nxt" class="hidden mt-6 w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-4 rounded-xl transition shadow-md" onclick="nextQuiz2()">Tiếp tục ➡️</button>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function handleQuiz2(selIdx) {
+            const item = quiz2Data[q2Idx];
+            const btns = document.getElementById('q2-opts').querySelectorAll('button');
+            const fb = document.getElementById('q2-fb');
+            
+            btns.forEach((btn, i) => {
+                btn.disabled = true;
+                if(i === item.correct) btn.classList.add('selected-correct');
+                else if(i === selIdx) btn.classList.add('selected-wrong');
+            });
+
+            fb.style.display = 'block';
+            if(selIdx === item.correct) {
+                fb.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-green-50 text-green-800 border border-green-200 block";
+                fb.innerHTML = "✅ " + item.expl;
+            } else {
+                fb.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-red-50 text-red-800 border border-red-200 block";
+                fb.innerHTML = "❌ " + item.expl;
+            }
+
+            document.getElementById('q2-nxt').classList.remove('hidden');
+        }
+
+        function nextQuiz2() {
+            q2Idx++;
+            if(q2Idx < quiz2Data.length) renderQuiz2();
+            else document.getElementById('quiz2-container').innerHTML = `<div class="text-center py-6"><div class="text-5xl mb-3">🛠️</div><h4 class="font-bold text-xl text-brand-700">Hoàn thành Trò chơi 2!</h4><p class="text-sm text-slate-500 mt-2">Bạn đã biết cách sử dụng các công cụ linh hoạt.</p></div>`;
+        }
+
+        // Bài Đánh Giá Cuối Khóa (Tự luận)
+        let ptIdx = 0;
+        function renderPt() {
+            const container = document.getElementById('final-test-container');
+            const item = finalTestData[ptIdx];
+            
+            let html = `
+                <div class="test-step active">
+                    <div class="mb-6 flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Câu hỏi ${ptIdx + 1} / ${finalTestData.length}</span>
+                        <div class="flex gap-1">
+                            ${finalTestData.map((_, i) => `<div class="w-2 h-2 rounded-full ${i === ptIdx ? 'bg-brand-500' : (i < ptIdx ? 'bg-brand-200' : 'bg-slate-200')}"></div>`).join('')}
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-base md:text-lg font-bold text-slate-800 mb-6 leading-snug">${item.q}</h3>
+                    <div class="space-y-3" id="pt-opts">
+            `;
+            item.options.forEach((opt, i) => {
+                html += `
+                    <button class="interactive-btn w-full text-left p-4 rounded-xl bg-surface border-slate-200 text-slate-700 font-medium flex items-center" onclick="handlePt(${i})">
+                        <div class="radio-circle"></div> ${opt}
+                    </button>
+                `;
+            });
+            html += `
+                    </div>
+                    <div id="pt-fb" class="hidden mt-6 p-4 rounded-xl text-sm border"></div>
+                    <button id="pt-nxt" class="hidden mt-6 w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-4 rounded-xl transition shadow-md" onclick="nextPt()">Tiếp tục ➡️</button>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+        
+        function handlePt(selIdx) {
+            const item = finalTestData[ptIdx];
+            const btns = document.getElementById('pt-opts').querySelectorAll('button');
+            const fb = document.getElementById('pt-fb');
+            
+            btns.forEach((btn, i) => {
+                btn.disabled = true;
+                if(i === item.correct) btn.classList.add('selected-correct');
+                else if(i === selIdx) btn.classList.add('selected-wrong');
+            });
+
+            // TÍNH ĐIỂM Ở ĐÂY
+            if(selIdx === item.correct) {
+                finalScore++;
+                fb.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-green-50 text-green-800 border border-green-200 block";
+                fb.innerHTML = "✅ <strong>Chính xác!</strong> " + item.expl;
+            } else {
+                fb.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-red-50 text-red-800 border border-red-200 block";
+                fb.innerHTML = "❌ <strong>Chưa chính xác.</strong> " + item.expl;
+            }
+
+            fb.style.display = 'block';
+
+            const nxt = document.getElementById('pt-nxt');
+            nxt.classList.remove('hidden');
+            if(ptIdx === finalTestData.length - 1) {
+                nxt.innerHTML = "Hoàn thành & Nhận chứng nhận 🏆";
+                nxt.classList.replace('bg-brand-600', 'bg-accent-main');
+                nxt.classList.replace('hover:bg-brand-700', 'hover:bg-accent-hover');
+            }
+        }
+        
+        function nextPt() {
+            ptIdx++;
+            if(ptIdx < finalTestData.length) renderPt();
+            else {
+                document.getElementById('final-test-container').style.display = 'none';
+                
+                // Hiển thị điểm số trên Giấy chứng nhận
+                const scoreDisplay = document.getElementById('final-score-display');
+                let ranking = "Hoàn thành";
+                if(finalScore === 4) ranking = "Xuất sắc";
+                else if(finalScore === 3) ranking = "Giỏi";
+                else if(finalScore === 2) ranking = "Khá";
+                
+                scoreDisplay.innerHTML = `Điểm số: ${finalScore}/${finalTestData.length} - ${ranking}`;
+                
+                document.getElementById('certificate-area').style.display = 'block';
+                fireConfetti();
+            }
+        }
+
+        function fireConfetti() {
+            var dur = 4000; var end = Date.now() + dur;
+            (function frame() {
+                confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#14b8a6', '#F59E0B'] });
+                confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#14b8a6', '#F59E0B'] });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+            setTimeout(() => { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, zIndex: 100 }); }, 500);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderMg1();
+            renderQuiz2();
+            renderPt();
+        });
+    </script>
+</body>
+</html>
